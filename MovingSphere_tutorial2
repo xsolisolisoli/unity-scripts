@@ -1,0 +1,88 @@
+using UnityEngine;
+
+public class MovingSphere : MonoBehaviour
+{
+    public float maxSpeed = 10f;
+    [SerializeField, Range(0, 5)] int maxAirJumps = 0;
+    [SerializeField, Range(0f, 100f)] float maxAcceleration = 10f, maxAirAcceleration = 1f;
+    [SerializeField] float jumpHeight = 2f;
+    [SerializeField] float groundCheckDistance = 0.2f; // Distance to check for ground
+    [SerializeField] LayerMask groundLayer; // Layer for ground objects
+
+    Rigidbody body;
+    Vector3 velocity, desiredVelocity;
+    bool desiredJump;
+    int jumpPhase;
+    bool onGround;
+
+    void Awake() => body = GetComponent<Rigidbody>();
+
+    void Update()
+    {
+        // Input handling
+        Vector2 playerInput = new Vector2(
+            Input.GetAxis("Horizontal"),
+            Input.GetAxis("Vertical")
+        );
+        playerInput = Vector2.ClampMagnitude(playerInput, 1f);
+        desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
+
+        // Jump input
+        desiredJump |= Input.GetButtonDown("Jump");
+    }
+
+    void FixedUpdate()
+    {
+        // Improved ground check using raycasting
+        RaycastHit hit;
+        onGround = Physics.Raycast(
+            transform.position,
+            Vector3.down,
+            out hit,
+            groundCheckDistance,
+            groundLayer
+        );
+
+        UpdateState();
+
+        // Acceleration calculations
+        float acceleration = onGround ? maxAcceleration : maxAirAcceleration;
+        float maxSpeedChange = acceleration * Time.deltaTime;
+
+        velocity.x = Mathf.MoveTowards(velocity.x, desiredVelocity.x, maxSpeedChange);
+        velocity.z = Mathf.MoveTowards(velocity.z, desiredVelocity.z, maxSpeedChange);
+
+        // Handle jump
+        if (desiredJump)
+        {
+            desiredJump = false;
+            Jump();
+        }
+
+        // Apply gravity
+        velocity.y += Physics.gravity.y * Time.deltaTime;
+        body.velocity = velocity;
+    }
+
+    void UpdateState()
+    {
+        if (onGround) jumpPhase = 0;
+    }
+
+    void Jump()
+    {
+        if (onGround || (jumpPhase < maxAirJumps))
+        {
+            jumpPhase++;
+            float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
+            velocity.y = jumpSpeed;
+        }
+    }
+
+    // Optional: Visualize ground check in editor
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = onGround ? Color.green : Color.red;
+        Gizmos.DrawLine(transform.position, transform.position + Vector3.down * groundCheckDistance);
+    }
+}
